@@ -171,13 +171,12 @@ pratt_parse(std::unique_ptr<Node> root, const std::vector<token> &buffer_lex) {
 }
 
 std::expected<std::unique_ptr<Node>, parse_error>
-parse(std::unique_ptr<Node> root, const std::vector<token> &buffer_lex,
-      int index_begin);
+recursive_parse(std::unique_ptr<Node> root,
+                const std::vector<token> &buffer_lex, int index_begin);
 
 std::expected<std::unique_ptr<Node>, parse_error>
 handle_control_flow_else(std::unique_ptr<Node> root,
-                         const std::vector<token> &buffer_lex, int index_begin,
-                         int i,
+                         const std::vector<token> &buffer_lex, int i,
                          const std::string &keyword) { // i means current index
   std::vector<token> temp_buffer = {};
   i++; // now buffer_lex[i].value == "{"
@@ -203,15 +202,16 @@ handle_control_flow_else(std::unique_ptr<Node> root,
 
   temp_buffer.pop_back();
 
-  auto code_result = parse(std::make_unique<Node>(root.get(), nullptr, nullptr),
-                           temp_buffer, 0);
+  auto code_result = recursive_parse(
+      std::make_unique<Node>(root.get(), nullptr, nullptr), temp_buffer, 0);
   if (!code_result.has_value()) {
     return std::unexpected(code_result.error());
   }
   root->left = std::move(*code_result);
 
   root->right = std::make_unique<Node>(nullptr, nullptr, nullptr);
-  auto later_code_result = parse(std::move(root->right), buffer_lex, i);
+  auto later_code_result =
+      recursive_parse(std::move(root->right), buffer_lex, i);
   if (!later_code_result.has_value()) {
     return std::unexpected(later_code_result.error());
   }
@@ -220,8 +220,7 @@ handle_control_flow_else(std::unique_ptr<Node> root,
   return std::move(root);
 }
 std::expected<std::unique_ptr<Node>, parse_error> handle_control_flow_keyword(
-    std::unique_ptr<Node> root, const std::vector<token> &buffer_lex,
-    int index_begin, int i,
+    std::unique_ptr<Node> root, const std::vector<token> &buffer_lex, int i,
     const std::string &keyword) { // i means current index
   std::vector<token> temp_buffer = {};
   i++;
@@ -268,14 +267,16 @@ std::expected<std::unique_ptr<Node>, parse_error> handle_control_flow_keyword(
 
   temp_buffer.pop_back();
 
-  auto code_result = parse(std::move(root->left->right), temp_buffer, 0);
+  auto code_result =
+      recursive_parse(std::move(root->left->right), temp_buffer, 0);
   if (!code_result.has_value()) {
     return std::unexpected(code_result.error());
   }
   root->left->right = std::move(*code_result);
 
   root->right = std::make_unique<Node>(nullptr, nullptr, nullptr);
-  auto later_code_result = parse(std::move(root->right), buffer_lex, i);
+  auto later_code_result =
+      recursive_parse(std::move(root->right), buffer_lex, i);
   if (!later_code_result.has_value()) {
     return std::unexpected(later_code_result.error());
   }
@@ -286,11 +287,11 @@ std::expected<std::unique_ptr<Node>, parse_error> handle_control_flow_keyword(
 
 std::expected<std::unique_ptr<Node>, parse_error>
 handle_all_control_flow(std::unique_ptr<Node> root,
-                        const std::vector<token> &buffer_lex, int index_begin,
+                        const std::vector<token> &buffer_lex,
                         int i) { // i means current index
   if (buffer_lex[i].type == lex_types::WORD && buffer_lex[i].value == "if") {
-    auto temp_root = handle_control_flow_keyword(std::move(root), buffer_lex,
-                                                 index_begin, i, "if");
+    auto temp_root =
+        handle_control_flow_keyword(std::move(root), buffer_lex, i, "if");
     if (!temp_root.has_value())
       return std::unexpected(temp_root.error());
     root = std::move(*temp_root);
@@ -298,29 +299,29 @@ handle_all_control_flow(std::unique_ptr<Node> root,
 
   else if (buffer_lex[i].type == lex_types::WORD &&
            buffer_lex[i].value == "while") {
-    auto temp_root = handle_control_flow_keyword(std::move(root), buffer_lex,
-                                                 index_begin, i, "while");
+    auto temp_root =
+        handle_control_flow_keyword(std::move(root), buffer_lex, i, "while");
     if (!temp_root.has_value())
       return std::unexpected(temp_root.error());
     root = std::move(*temp_root);
   } else if (buffer_lex[i].type == lex_types::WORD &&
              buffer_lex[i].value == "for") {
-    auto temp_root = handle_control_flow_keyword(std::move(root), buffer_lex,
-                                                 index_begin, i, "for");
+    auto temp_root =
+        handle_control_flow_keyword(std::move(root), buffer_lex, i, "for");
     if (!temp_root.has_value())
       return std::unexpected(temp_root.error());
     root = std::move(*temp_root);
   } else if (buffer_lex[i].type == lex_types::WORD &&
              buffer_lex[i].value == "else") {
-    auto temp_root = handle_control_flow_else(std::move(root), buffer_lex,
-                                              index_begin, i, "else");
+    auto temp_root =
+        handle_control_flow_else(std::move(root), buffer_lex, i, "else");
     if (!temp_root.has_value())
       return std::unexpected(temp_root.error());
     root = std::move(*temp_root);
   } else if (buffer_lex[i].type == lex_types::WORD &&
              buffer_lex[i].value == "elif") {
-    auto temp_root = handle_control_flow_keyword(std::move(root), buffer_lex,
-                                                 index_begin, i, "elif");
+    auto temp_root =
+        handle_control_flow_keyword(std::move(root), buffer_lex, i, "elif");
     if (!temp_root.has_value())
       return std::unexpected(temp_root.error());
     root = std::move(*temp_root);
@@ -339,7 +340,8 @@ handle_all_control_flow(std::unique_ptr<Node> root,
     root->left = std::move(*temp_root);
 
     root->right = std::make_unique<Node>(nullptr, nullptr, nullptr);
-    auto later_code_result = parse(std::move(root->right), buffer_lex, i + 1);
+    auto later_code_result =
+        recursive_parse(std::move(root->right), buffer_lex, i + 1);
     if (!later_code_result.has_value()) {
       return std::unexpected(later_code_result.error());
     }
@@ -354,18 +356,15 @@ handle_all_control_flow(std::unique_ptr<Node> root,
 }
 
 std::expected<std::unique_ptr<Node>, parse_error>
-parse(std::unique_ptr<Node> root, const std::vector<token> &buffer_lex,
-      int index_begin) {
-  for (int i = index_begin; i < buffer_lex.size(); ++i) {
-    auto temp_root =
-        handle_all_control_flow(std::move(root), buffer_lex, index_begin, i);
+recurisve_parse(std::unique_ptr<Node> root,
+                const std::vector<token> &buffer_lex, int index_begin) {
+  auto temp_root =
+      handle_all_control_flow(std::move(root), buffer_lex, index_begin);
 
-    if (!temp_root.has_value())
-      return std::unexpected(temp_root.error());
-    root = std::move(*temp_root);
+  if (!temp_root.has_value())
+    return std::unexpected(temp_root.error());
+  root = std::move(*temp_root);
 
-    return std::move(root);
-  }
   return std::move(root);
 }
 
@@ -388,7 +387,8 @@ int main(int argc, char **argv) {
 
   std::unique_ptr<Node> initial_root =
       std::make_unique<Node>(nullptr, nullptr, nullptr);
-  auto evaluated_root = parse(std::move(initial_root), *buffer_lex, 0);
+  auto evaluated_root =
+      recursive_parse(std::move(initial_root), *buffer_lex, 0);
   if (!evaluated_root.has_value()) {
     std::cout << "ERR: parsing interrupted by error: "
               << (int)evaluated_root.error() << '\n';
